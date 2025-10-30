@@ -1,0 +1,188 @@
+import numpy as np
+import networkx as nx
+from scipy.optimize import minimize
+from qiskit import QuantumCircuit, transpile
+from qiskit_aer import AerSimulator
+from qiskit.quantum_info import Statevector
+from qiskit.circuit import Parameter
+import QAOAmc_core_components as core
+
+################# Pretraining QAOA EXAMPLE ############################
+
+# the majority of functions are helper functions which are identical to the ones in the standard qaoa code
+# difference is in the circuit design, which takes two graph structures and two sets of gammas
+# this follwos the unitary defined by Equation 3.11 in the thesis
+
+# set up for Qiskit simulation of the PQC of given depth p, for an iteration of classical optimization
+def PQC_sim_setup(backend, G, Gprime, p):
+    quals = core.quals(G)
+    
+    n = len(G)
+    qc = core.initialize_qubits(n)
+    gamma_parametersG = [Parameter(f"gammaG_{i}") for i in range(p)]
+    gamma_parametersP = [Parameter(f"gammaP_{i}") for i in range(p)]
+    time_parameters = [Parameter(f"t_{i}") for i in range(p)]
+    for i in range(p):
+        core.apply_phase_separatorG(qc, G, gamma_parametersG[i])
+        core.apply_phase_separatorP(qc, Gprime, gamma_parametersP[i])
+        core.apply_mixing_operator(qc, time_parameters[i])
+    qc.save_statevector()
+    qc = transpile(qc, backend=backend)
+    return quals, qc, gamma_parametersG, gamma_parametersP, time_parameters
+
+#map given parameters to quantum circuit
+def map_params(gammas, gamma_primes, times, qc, gamma_parameters, gamma_prime_parameters, t_parameters, p):
+    params_dict = {}
+    for i in range(p):
+        params_dict[gamma_parameters[i]] = gammas[i]
+        params_dict[gamma_prime_parameters[i]] = gamma_primes[i]
+        params_dict[t_parameters[i]] = t[i]
+    qc = qc.assign_parameters(params_dict)
+    return qc
+
+# classical optimization
+def expectation(backend, Q, qc, G, gammaG_parameters,gammaP_parameters, time_parameters, gammasG,gammasP, times, p, return_max_prob=False,optimize=False, method='L-BFGS-B', bounds=None,options = {'maxiter': 100} ):
+    
+    # As currently formulated, this approach requires running the simulation TWICE for each iteration: once to get the expectation value of the cut size (cost(params)) and once to get the gradients of each parameter (gradients(params))
+    # This must be slowing it down. It would be better to run once at each iteration and feed the expectation value and gradients to the minimizer.
+    
+    
+    n = qc.num_qubits
+    
+    Gprime = random_graph(n, G_type="path")
+    Qprime = core.quality_vector(Gprime)
+    
+    def cost(params):
+        # Unpack the parameters
+        gammasG_opt = params[:p]
+        gammasP_opt = params[p:2*p]
+        times_opt = params[2*p:]
+        # Map parameters to quantum circuit
+        qc_opt = map_params(gammasG_opt,gammasP_opt, times_opt, qc, gammaG_parameters,gammaP_parameters, time_parameters, p)
+        # Use the backend to calculate the expectation value
+        statevector = backend.run(qc_opt).result().get_statevector()
+        
+        expectation_value = Q @ (np.abs(statevector)**2)
+        return -expectation_value  # Negative for minimization
+    derivativeM = []
+    for i in range(n):
+        dM=QuantumCircuit(n)
+        dM.x(i)
+        derivativeM+= [dM]
+
+    # gradients are calculated according to the procedure outlined by Jones et al 2024, reference 144 of the associated thesis
+    def gradients(params):
+        # Unpack the parameters
+        gammasG_opt = params[:p]
+        gammasP_opt = params[p:2*p]
+        times_opt = params[2*p:]
+        # Map parameters to quantum circuit
+        qc_opt = map_params(gammasG_opt,gammasP_opt, times_opt, qc, gammaG_parameters,gammaP_parameters, time_parameters, p)
+        # Use the backend to calculate the expectation value
+        sv= backend.run(qc_opt).result().get_statevector()
+        phi = Statevector(sv.data)
+        lm=sv.data*Q
+        lam = Statevector(lm)
+        # compute gradients
+        dTimes = np.zeros(p)
+        dGammasG = np.zeros(p)
+        dGammasP = np.zeros(p)   
+        for i in range(p-1,-1,-1): #(start(incl), stop(excl), increment): starts at (p-1)th layer and stops at 0th layer 
+  
+            dTimes[i] = 2*sum(1.0j*lam.conjugate().data@phi.evolve(derivativeM[i]).data for i in range(n)).real
+
+            udag = core.reverse_mixing_operator(n,times_opt[i])
+            phi=phi.evolve(udag)
+
+            lam=lam.evolve(udag)
+
+            dGammasP[i] = 2*(1j*lam.conjugate().data@(QP*phi.data)).real
+
+            udag = core.reverse_phase_separator(n,GP,gammasP_opt[i])
+            phi=phi.evolve(udag)
+
+            lam=lam.evolve(udag)
+
+            dGammasG[i] = 2*(1j*lam.conjugate().data@(Q*phi.data)).real
+
+            udag = core.reverse_phase_separator(n,G,gammasG_opt[i])
+            phi=phi.evolve(udag)
+
+            lam=lam.evolve(udag)
+        return np.concatenate((dGammasG, dGammasP, dTimes))
+
+    if optimize:
+        # Combine initial gamma and time parameters into one array
+        initial_params = np.concatenate((gammasG,gammasP, times))
+        
+        # Default bounds if not provided
+        if bounds is None:
+            bounds = [(0, 2*np.pi)] * (3*p)  # Assuming ranges [0, 2π] for all parameters
+
+        costs=[]
+        def make_callback(costs):
+            iteration = 0
+            def callback(xk):
+                nonlocal iteration
+                iteration += 1
+                obj_value = cost(xk)
+                costs.append(obj_value)
+                print(f"Iteration: {iteration},  Objective function value: {obj_value}")
+            return callback
+
+        callback = make_callback(costs)
+        # Minimize the negative expectation value
+        result = minimize(cost, initial_params, bounds=bounds, method=method,jac=gradients,options=options,callback=callback)
+    
+
+        # Extract the optimal parameters
+        optimal_params = result.x
+        optimal_gammasG = optimal_params[:p]
+        optimal_gammasP = optimal_params[p:2*p]
+        optimal_times = optimal_params[2*p:]
+        
+        # Get the probablility of measuring the best value
+        qc = map_params(optimal_gammasG, optimal_gammasP,optimal_times, qc, gammaG_parameters,gammaP_parameters, time_parameters, p)
+        statevector = backend.run(qc).result().get_statevector()
+        probs = (np.abs(statevector)**2)
+
+        # The maximum expectation value is the negative of the minimum found
+        max_expectation_value = -result.fun
+        
+        return optimal_gammasG, optimal_gammasP, optimal_times, result,max_expectation_value,sum(probs[np.where(Q == max(Q))[0]])
+    
+    else:
+        
+        # Calculate expectation with given parameters
+        qc = map_params(gammasG,gammasP, times, qc, gammaG_parameters,gammaP_parameters, time_parameters, p)
+        statevector = backend.run(qc).result().get_statevector()
+        probs = (np.abs(statevector)**2)
+        if return_max_prob:
+            return Q @ probs, sum(probs[np.where(Q == max(Q))[0]])
+        else:
+            return Q @ probs
+
+
+
+# run the full VQA (with supplied initial parameters)
+def run(backend, Q, G, Gprime, p, q, params_init, gammas=False):
+    # set up
+    #- cut sizes
+    Q = core.qualities(G)
+    # print("CUT SIZE: max: ", max(Q), " mean: ", np.mean(Q), " med: ", np.median(Q))
+    
+    #- prepare equal superposition and label parameters in PQC
+    Q, qc, gamma_parameters, gamma_prime_parameters, time_parameters = PQC_sim_setup(backend, G, Gprime, p)
+    
+    #- initialize parameters
+    if type(gammas) == bool:
+        gammas = [0] * p # initialize gammas to 0
+    else:
+        gammas = np.array(gammas)
+    gamma_primes = params_init[0]
+    times = params_init[1]
+    
+    # simulation
+    result = expectation(backend, Q, qc, G, gammaG_parameters, gammaP_parameters, time_parameters, gammasG, gammasP, times, p, optimize=True, options={"maxfun": 50000, "maxiter": iters})
+
+    return result, max(Q), np.median(Q)
