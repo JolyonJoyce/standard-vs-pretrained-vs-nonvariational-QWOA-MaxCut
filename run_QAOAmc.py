@@ -174,11 +174,11 @@ def main_args():
     parser.add_argument(
         "-l",
         "--logs",
-        default=False,
+        default=True,
         dest="logs",
         type=bool,
         nargs="?",
-        help="whether to print detailed logs (default = False)"
+        help="whether to print detailed logs (default = True)"
     )
 
     return parser.parse_args()
@@ -296,7 +296,7 @@ if __name__ == "__main__":
             #print(scipy_output)
             print()
             print(f"Completed stdQAOAmc(G,{p},{q}) with optimization terminating after", num_iters, "iterations, yielding:")
-            print(" ‣ expectation ratio =", expectation_ratio, "( = [minimum (over iterations) expectation value of objective function of amplified state] / [maximum cut size] )")
+            print(" ‣ expectation ratio =", expectation_ratio, "( = [minimum found expectation value of cut size of amplified state] / [maximum cut size] )")
             print(" ‣ prob of measuring a maximum cut =", prob_max)
             print()
             print(f"Time elapsed for hybrid algorithm:", end_time - start_time)
@@ -316,8 +316,8 @@ if __name__ == "__main__":
             #print("Output from scipy.optimize.minimize:")
             #print(scipy_output)
             print()
-            print(f"Completed stdQAOAmc(G,{p},{q}) with optimization terminating after", num_iters, "iterations, yielding:")
-            print(" ‣ expectation ratio =", expectation_ratio, "( = [minimum (over iterations) expectation value of objective function of amplified state] / [maximum cut size] )")
+            print(f"Completed ptQAOAmc(G,{p},{q}) with optimization terminating after", num_iters, "iterations, yielding:")
+            print(" ‣ expectation ratio =", expectation_ratio, "( = [minimum found expectation value of cut size of amplified state] / [maximum cut size] )")
             print(" ‣ prob of measuring a maximum cut =", prob_max)
             print()
             print(f"Time elapsed for hybrid algorithm:", end_time - start_time)
@@ -337,8 +337,8 @@ if __name__ == "__main__":
             #print("Output from scipy.optimize.minimize:")
             #print(scipy_output)
             print()
-            print(f"Completed stdQAOAmc(G,{p},{q}) with optimization terminating after", num_iters, "iterations, yielding:")
-            print(" ‣ expectation ratio =", expectation_ratio, "( = [minimum (over iterations) expectation value of objective function of amplified state] / [maximum cut size] )")
+            print(f"Completed nvQAOAmc(G,{p},{q}) with optimization terminating after", num_iters, "iterations, yielding:")
+            print(" ‣ expectation ratio =", expectation_ratio, "( = [minimum found expectation value of cut size of amplified state] / [maximum cut size] )")
             print(" ‣ prob of measuring a maximum cut =", prob_max)
             print(f" ‣ best found parameters: (β,γ,t) = ({best_beta:.6}, {best_gamma:.6}, {best_t:.6})")
             print()
