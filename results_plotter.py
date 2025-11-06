@@ -400,6 +400,136 @@ def plot_results2(results1, results2, folder_labels):
     # Show the plots
     plt.show()
 
+def process_folder3(folder_path, edit_dist, solution_similarities_min, solution_similarities_mean):
+    """
+    Processes a single folder using associated data lists.
+    
+    Returns a dictionary with processed data.
+    """
+    # Initialize counters
+    total_files = 0
+    better_than_0878 = 0
+    instances_in_local_minima = 0
+    instances_stuck_on_BP = 0
+    instances_which_converged = 0
+
+    # Initialize lists to store values for later analysis
+    edit_dists = []
+    hamming_dists_min = []
+    hamming_dists_mean = []
+    seeds = []
+
+    # List to store approximation ratios for plotting
+    all_runs = []
+
+    # Iterate through each file and its corresponding data
+    for seed in range(200):
+        filename = f"seed_{seed}.txt"
+        filepath = os.path.join(folder_path, filename)
+        
+        if not os.path.exists(filepath):
+            print(f"File {filename} not found, skipping.")
+            continue
+        
+        try:
+            with open(filepath, 'r') as file:
+                lines = file.readlines()
+            
+            # Extract maxcut by searching for the line containing "‣ max  = "
+            maxcut = None
+            for line in lines:
+                stripped = line.strip()
+                if stripped.startswith('‣ max') and '=' in stripped:
+                    parts = stripped.split('=', 1)
+                    if len(parts) == 2:
+                        maxcut_str = parts[1].strip()
+                        maxcut = float(maxcut_str)
+                        break
+            
+            if maxcut is None:
+                print(f"Maxcut not found in {filename}, skipping.")
+                continue
+            
+            # Extract the negative values starting from after the header until blank line
+            qaoa_values = []
+            started = False
+            for line in lines:
+                stripped_line = line.strip()
+                if "!! -1 * (expectation value of cut size) at each iteration:" in stripped_line:
+                    started = True
+                    continue
+                if started:
+                    if stripped_line == "":
+                        break
+                    if stripped_line.startswith('-'):
+                        try:
+                            qaoa_value = float(stripped_line)
+                            qaoa_values.append(qaoa_value)
+                        except ValueError:
+                            print(f"Invalid qaoa_value '{stripped_line}' in {filename}, skipping this value.")
+            
+            if not qaoa_values:
+                print(f"No qaoa_values found in {filename}, skipping.")
+                continue
+            
+        except Exception as e:
+            print(f"Error processing {filename}: {e}")
+            
+        # Compute Approximation Ratio at each iteration
+        if maxcut and qaoa_values:
+            training_history = [val / maxcut for val in qaoa_values]
+            all_runs.append(training_history)
+            iterations = list(range(1, len(training_history) + 1))
+
+            # Check if the last normalized value is better than 0.8786
+            if training_history[-1] > 0.8786:
+                better_than_0878 += 1
+            if training_history[-1] >0.9999:
+                instances_which_converged += 1
+            if len(training_history) < 20:
+                instances_in_local_minima += 1
+            elif training_history[-1] <0.75:
+                instances_stuck_on_BP+= 1
+
+            total_files += 1
+
+            # Store the edit and Hamming distances for each graph as well as the final approximation ratio
+            # Since data is provided as lists aligned with files, use the current index
+            edit_dists.append([edit_dist[seed], training_history[-1]])
+            hamming_dists_min.append([solution_similarities_min[seed], training_history[-1]])
+            hamming_dists_mean.append([solution_similarities_mean[seed], training_history[-1]])
+        else:
+            print(f"Warning: No valid QAOA values or Maxcut found in file {filename}")
+
+    # Calculate the fraction of instances with a better approximation ratio than 0.878
+    fraction_better_than_0878 = better_than_0878 / total_files if total_files > 0 else 0
+    print(f"Folder '{folder_path}':")
+    print(f"  Total files processed: {total_files}")
+    print(f"  Instances better than 0.878: {better_than_0878}")
+    print(f"  Fraction better than 0.878: {fraction_better_than_0878:.4f}")
+    print(f"  Instances in local minima: {instances_in_local_minima}")
+    print(f"  Instances stuck on BP: {instances_stuck_on_BP}")
+    print(f"  Instances which converged: {instances_which_converged}\n")
+
+    # Prepare counters dictionary
+    counters = {
+        'total_files': total_files,
+        'better_than_0878': better_than_0878,
+        'fraction_better_than_0878': fraction_better_than_0878,
+        'instances_in_local_minima': instances_in_local_minima,
+        'instances_stuck_on_BP': instances_stuck_on_BP,
+        'instances_which_converged': instances_which_converged
+    }
+
+    return {
+        'edit_dists': edit_dists,
+        'hamming_dists_min': hamming_dists_min,
+        'hamming_dists_mean': hamming_dists_mean,
+        'counters': counters,
+        'all_runs': all_runs,
+        'seeds': seeds
+    }
+
 
 def process_folder2(folder_path, edit_dist, solution_similarities_min, solution_similarities_mean):
     """
@@ -471,13 +601,13 @@ def process_folder2(folder_path, edit_dist, solution_similarities_min, solution_
             iterations = list(range(1, len(training_history) + 1))
 
             # Check if the last normalized value is better than 0.878
-            if training_history[-1] > 0.878:
+            if training_history[-1] > 0.8786:
                 better_than_0878 += 1
             if training_history[-1] >0.9999:
                 instances_which_converged += 1
             if len(training_history) < 20:
                 instances_in_local_minima += 1
-            elif training_history[-1] <0.75:
+            if training_history[-1] <0.75:
                 instances_stuck_on_BP+= 1
 
             total_files += 1
