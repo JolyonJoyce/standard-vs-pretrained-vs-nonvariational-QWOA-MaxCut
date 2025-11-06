@@ -39,11 +39,12 @@ def generate_graph(n=4, G_type="ER", weighted=False, edge_prob=0.3, seed=None):
     - seed (int or bool): seed for random number generator;
     - weighted (bool): whether or not to assign random weights to edges;
     - G_type (str): type of graph to generate:
-        - "path": a path graph of order n.
-        - "cycle": a cycle graph of order n.
-        - "complete": the complete graph of order n (unweighted only). # does weighted not work? why?
-        - "3-regular": a 3-regular graph.
-        - "ER": a graph generated using the Erdős-Rényi random graph model (every possible edge has an equal probability edge_prob of existing).
+        - "path" : a path graph of order n.
+        - "cycle" : a cycle graph of order n.
+        - "complete" : the complete graph of order n (unweighted only). # does weighted not work? why?
+        - "3-reg" : a 3-regular graph.
+        - "pseudo-3-reg" : different method of generating 3-regular graphs with very small non-zero probability of generating a non-3-regular graph.
+        - "ER" : a graph generated using the Erdős-Rényi random graph model (every possible edge has an equal probability edge_prob of existing).
 
     Returns:
     - G : Adjacency matrix of the generated graph.
@@ -84,7 +85,7 @@ def generate_graph(n=4, G_type="ER", weighted=False, edge_prob=0.3, seed=None):
         if not weighted:
             G = G.astype(int) #ensure unweighted graphs have integer entries
 
-    elif G_type == "3-regular":
+    elif G_type == "3-reg":
         if n % 2 != 0:
             raise ValueError("3-regular graphs only exist for even numbers of vertices.")
         G_nx = nx.random_regular_graph(3, n, seed=seed if isinstance(seed, int) else None)
@@ -99,9 +100,9 @@ def generate_graph(n=4, G_type="ER", weighted=False, edge_prob=0.3, seed=None):
         else:
             G = G.astype(int) #ensure unweighted graphs have integer entries
          
-    elif G_type == "pseudo-3-regular": #this was the method used in Matthaus' thesis code; generating weighted graphs of this type with seed = 0 through 199 will produce the graphs used in Matthaus' thesis
+    elif G_type == "pseudo-3-reg": #this was the method used in Matthaus' thesis code; generating weighted graphs of this type with seed = 0 through 199 will produce the graphs used in Matthaus' thesis
         if n * 3 % 2 != 0:
-            raise ValueError("3-regular graphs are only possible for an even number of nodes.")
+            raise ValueError("3-reg graphs are only possible for an even number of nodes.")
         G_nx = nx.random_regular_graph(3, n, seed=seed if isinstance(seed, int) else None)
         G = np.array(nx.to_numpy_array(G_nx))
         if weighted:

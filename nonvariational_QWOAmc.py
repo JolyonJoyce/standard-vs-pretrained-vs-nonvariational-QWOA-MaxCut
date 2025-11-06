@@ -28,6 +28,7 @@ def map_params(Q, alpha, beta, gamma, t, qc, gamma_parameters, t_parameters, p):
 def sim_and_optimize(backend, Q, qc, G, gamma_parameters, t_parameters, alpha, beta_init, gamma_init, t_init, p, return_max_prob=False, optimize=False, method='L-BFGS-B', bounds=None, options = {'maxiter': 100}): 
     
     n = qc.num_qubits
+    
     def cost(params):
         # Unpack the parameters
         beta_guess = params[0]
@@ -35,10 +36,10 @@ def sim_and_optimize(backend, Q, qc, G, gamma_parameters, t_parameters, alpha, b
         t_guess = params[2]
         
         # Map parameters to quantum circuit
-        qc_opt = map_params(Q, alpha, beta_guess, gamma_guess, t_guess, qc, gamma_parameters, t_parameters, p)
+        qc_guess = map_params(Q, alpha, beta_guess, gamma_guess, t_guess, qc, gamma_parameters, t_parameters, p)
         
         # Use the backend to calculate the expectation value
-        statevector = backend.run(qc_opt).result().get_statevector()
+        statevector = backend.run(qc_guess).result().get_statevector()
         
         expectation_value = Q @ (np.abs(statevector)**2)
         print(-expectation_value) # to track minimization trajectory 

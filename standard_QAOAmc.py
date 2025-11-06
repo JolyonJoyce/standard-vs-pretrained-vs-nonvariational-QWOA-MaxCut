@@ -44,12 +44,12 @@ def sim_and_optimize(backend, Q, qc, G, gamma_parameters, t_parameters, gammas, 
     
     def cost(params): #how good are the found parameters? lower returned value = higher cut size = better :)
         # Unpack the (optimized) parameters
-        gammas_opt = params[:p]
-        ts_opt = params[p:]
+        gammas_guess = params[:p]
+        ts_guess = params[p:]
         # Map parameters to quantum circuit
-        qc_opt = map_params(gammas_opt, ts_opt, qc, gamma_parameters, t_parameters, p)
+        qc_guess = map_params(gammas_guess, ts_guess, qc, gamma_parameters, t_parameters, p)
         # Use the backend to calculate the expectation value
-        statevector = backend.run(qc_opt).result().get_statevector()
+        statevector = backend.run(qc_guess).result().get_statevector()
         
         expectation_value = Q @ (np.abs(statevector)**2) # matrix product of list of qualities Q with probability vector = expectation value of cut size
         print(-expectation_value) # to track minimization trajectory 
@@ -64,16 +64,16 @@ def sim_and_optimize(backend, Q, qc, G, gamma_parameters, t_parameters, gammas, 
     # gradients are calculated according to the procedure outlined by Jones et al 2024, reference 144 of the associated thesis
     def gradients(params):
         # Unpack the parameters
-        gammas_opt = params[:p]
-        ts_opt = params[p:]
+        gammas_guess = params[:p]
+        ts_guess = params[p:]
         
         # Map parameters to quantum circuit
-        qc_opt = map_params(gammas_opt, ts_opt, qc, gamma_parameters, t_parameters, p)
+        qc_guess = map_params(gammas_guess, ts_guess, qc, gamma_parameters, t_parameters, p)
         
         # Use the backend to calculate the expectation value
-        sv = backend.run(qc_opt).result().get_statevector()
+        sv = backend.run(qc_guess).result().get_statevector()
         phi = Statevector(sv.data)
-        lm=sv.data*Q
+        lm = sv.data*Q
         lam = Statevector(lm)
         
         # compute gradients
@@ -84,17 +84,17 @@ def sim_and_optimize(backend, Q, qc, G, gamma_parameters, t_parameters, gammas, 
 
             d_ts[i] = 2*sum(1.0j*lam.conjugate().data@phi.evolve(derivativeM[i]).data for i in range(n)).real
 
-            udag = core.reverse_mixing_operator(n,ts_opt[i])
-            phi=phi.evolve(udag)
+            udag = core.reverse_mixing_operator(n,ts_guess[i])
+            phi = phi.evolve(udag)
 
-            lam=lam.evolve(udag)
+            lam = lam.evolve(udag)
 
             d_gammas[i] = 2*(1j*lam.conjugate().data@(Q*phi.data)).real
 
-            udag = core.reverse_phase_separator(n,G,gammas_opt[i])
-            phi=phi.evolve(udag)
+            udag = core.reverse_phase_separator(n,G,gammas_guess[i])
+            phi = phi.evolve(udag)
 
-            lam=lam.evolve(udag)
+            lam = lam.evolve(udag)
         
         return np.concatenate((d_gammas, d_ts))
 

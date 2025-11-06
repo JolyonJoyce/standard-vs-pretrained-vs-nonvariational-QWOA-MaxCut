@@ -123,12 +123,12 @@ def main_args():
         type=str,
         nargs="?",
         help="""type of target graph:
-        - ER OR rand OR random (default) : a random graph whose edges are randomly generated based on the supplied edge probability (-e)
-        - 3-reg OR 3-regular: a randomly weighted 3-regular graph
-        - pseudo-3-reg: a dubiously generated randomly weighted 3-regular graph (very small probability of non-3-regular graph)
-        - path OR line : the path graph with all weights = 1
-        - cyc OR cycle OR cyclic : the cycle graph with all weights = 1
-        - comp OR complete : the complete graph with all weights = 1
+        - ER : a random graph whose edges are randomly generated based on the supplied edge probability (-e)
+        - 3-reg : a randomly weighted 3-regular graph
+        - pseudo-3-reg : a dubiously generated randomly weighted 3-regular graph (very small probability of non-3-regular graph)
+        - path : the path graph with all weights = 1
+        - cycle : the cycle graph with all weights = 1
+        - complete : the complete graph with all weights = 1
         """,
     )
     parser.add_argument(
@@ -151,7 +151,7 @@ def main_args():
         dest="optimal_params_file",
         type=str,
         nargs="?",
-        help="supply file name (string) into which to write optimal parameters; if empty, optimal parameters will not be written to a file; default = (empty)",
+        help="supply filename (including .npz extension) into which to write optimal parameters for stdQAOAmc; if empty, optimal parameters will not be written to a file; default = (empty)",
     )
     parser.add_argument(
         "-I",
@@ -160,7 +160,7 @@ def main_args():
         dest="initial_params_file",
         type=str,
         nargs="?",
-        help="supply custom (usually pretrained) initial parameters for ptQAOAmc from a file by giving its relative file path (string); if empty, random initial parameters will be used; default = (empty)",
+        help="supply pretrained initial parameters for ptQAOAmc from a file by giving its relative filename (including .npz extension); if empty, random initial parcustom (usually pretrained) ameters will be used; default = (empty)",
     )
     parser.add_argument(
         "-D",
@@ -231,47 +231,49 @@ if __name__ == "__main__":
     #load the parameters from the file supplied by -I
     if initial_params_file != "":
         loaded = np.load(initial_params_file)
-        params_init = np.array([np.array(loaded[key]) for key in loaded])
+        params_init = np.array([loaded['gammas'], loaded['ts']])
         if logs == True:
             print("Successfully loaded initial parameters for ptQAOAmc from ", initial_params_file)
-    
-    #generate graphs
-    if graph_type in {"rand", "random"}: graph_type = "ER"
-    elif graph_type == "3-reg": graph_type = "3-regular"
-    elif graph_type == "line": graph_type = "path"
-    elif graph_type in {"cyc", "cyclic"}: graph_type = "cycle"
-    elif graph_type in {"comp"}: graph_type = "complete"
+            print()
     
     if not weighted: weighted = False
     
-    if alg == "pt":
-        Gprime = generate_graph(n, aux_graph)
-        if logs == True:
-            print(f"Successfully generated auxillary graph G\' on n={n} vertices with data:")
+    if logs == True:
+        num_edges_complete = round(n*(n-1)/2)
     
+    if alg == "pt":
+        Gprime = generate_graph(n, aux_graph, weighted=False)
+        if logs == True:
+            print(f"Successfully generated auxillary graph G\' with data:")
+            print(f" ‣ unweighted {aux_graph} graph on n={n} vertices")
+            
+            num_edges_prime = round(np.count_nonzero(Gprime)/2)
+            
+            print(" ‣ number of edges =", num_edges_prime)
+            print(f" ‣ density = [number of edges] / [n(n-1)/2] = {num_edges_prime}/{num_edges_complete}", "=", num_edges_prime/num_edges_complete)
+            #print(" ‣ adjacency matrix:")
+            #print(Gprime)
+            print()
+
     G = generate_graph(n, graph_type, weighted, edge_prob, graph_seed)
+    Q = qualities(G)
     if logs == True:
         print()
         print(f"Successfully generated target graph G with data:")
     
-    if weighted == False: w = "unweighted"
-    else: w = "randomly weighted"
-    
-    if logs == True:
+        if weighted == False: w = "unweighted"
+        else: w = "randomly weighted"
+        
         if graph_type == "ER": print(f" ‣ {w} Erdős-Rényi random graph on n={n} vertices with edge generation probability of", edge_prob)
         else: print(f" ‣ {w} {graph_type} graph on n={n} vertices")
 
-    num_edges = round(np.count_nonzero(G)/2)
-    num_edges_complete = round(n*(n-1)/2)
-    if logs == True:
+        num_edges = round(np.count_nonzero(G)/2)
         print(" ‣ number of edges =", num_edges)
         print(f" ‣ density = [number of edges] / [n(n-1)/2] = {num_edges}/{num_edges_complete}", "=", num_edges/num_edges_complete)
         #print(" ‣ (weighted) adjacency matrix:")
         #print(G)
     
-    #analyze cuts (possible solutions and their qualities, i.e. cut sizes)
-    Q = qualities(G)
-    if logs == True:
+        #analyze cuts (possible solutions and their qualities, i.e. cut sizes)
         print(" ‣ distribution of cut sizes (objective function values):")
         #print(f"   ‣ number of cuts = 2^n = {2**n}")
         print("   ‣ max  = ", max(Q))
@@ -282,6 +284,7 @@ if __name__ == "__main__":
     
     #run standard QAOA
     if alg == 'std' or alg == 'all':
+        
         if logs == True:
             print(f"Running stdQAOAmc(G,{p},{q})...")
             print()
@@ -301,8 +304,16 @@ if __name__ == "__main__":
             print()
             print(f"Time elapsed for hybrid algorithm:", end_time - start_time)
         
+        if optimal_params_file != "":
+            np.savez(optimal_params_file, gammas=best_gammas, ts=best_ts)
+            if logs == True:
+                print(f"Successfully wrote optimal parameters to file {optimal_params_file}")
+            # write out best_gammas and best_ts to .npz file to be loaded as follows:
+            #   loaded = np.load(initial_params_file)
+            #   params_init = np.array([np.array(loaded[key]) for key in loaded])
+        
     #run pretrained QAOA
-    if alg == 'pt' or alg == 'all':
+    elif alg == 'pt' or alg == 'all':
         if logs == True:
             print(f"Running ptQAOAmc(G,{p},{q})...")
             print()
@@ -323,7 +334,7 @@ if __name__ == "__main__":
             print(f"Time elapsed for hybrid algorithm:", end_time - start_time)
 
     #run non-variational QWOA
-    if alg == 'nv' or alg == 'all':
+    elif alg == 'nv' or alg == 'all':
         if logs == True:
             print(f"Running nvQWOAmc(G,{p},{q})...")
             print()
