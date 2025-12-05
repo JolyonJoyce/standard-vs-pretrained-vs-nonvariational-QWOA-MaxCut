@@ -1,0 +1,58 @@
+Running...
+
+Successfully generated target graph G with data:
+ ‣ unweighted Erdős-Rényi random graph on n=16 vertices with edge generation probability of 0.3
+ ‣ number of edges = 31
+ ‣ density = [number of edges] / [n(n-1)/2] = 31/120 = 0.25833333333333336
+ ‣ distribution of cut sizes (objective function values):
+   ‣ max  =  24.0
+   ‣ mean =  15.5
+   ‣ med  =  16.0
+   ‣ std  =  2.7838821814150108
+
+Running randomly initialized nvQWOAmc(G,256,500)...
+
+randomizing initial parameters...
+
+!! -1 * (expectation value of cut size) at each iteration:
+-16.37503355549815
+-19.968792843725126
+-20.342030876971886
+-21.288536789148186
+-22.847584677120114
+-23.161836132602076
+-23.56793438374089
+-23.599969534614
+-23.60689940414816
+-23.61871452758639
+-23.62906828466711
+-23.629592609250736
+-23.64555388569612
+-23.66176438160843
+-23.665599693602324
+-23.670766199163428
+-23.67338761460524
+-23.674085906920443
+-23.67439823573419
+-23.67546369129335
+-23.678953412426893
+-23.68619016947591
+-23.694855595336303
+-23.702293764204423
+-23.729407459230313
+-23.738570826394536
+-23.75878668172531
+-23.760667450125972
+-23.766895631741008
+-23.767026010114883
+-23.76702721676201
+-23.767027298775172
+
+
+Completed randomly initialized nvQAOAmc(G,256,500) with optimization terminating after 32 iterations, yielding:
+ ‣ expectation ratio = 0.9902928041156321 ( = [minimum found expectation value of cut size of amplified state] / [maximum cut size] )
+ ‣ prob of measuring a maximum cut = 0.8850698983207907
+ ‣ best found parameters: (β,γ,t) = (0.87453, 1.57425, 1.79667)
+
+Time elapsed for hybrid algorithm: 169.89137363433838
+

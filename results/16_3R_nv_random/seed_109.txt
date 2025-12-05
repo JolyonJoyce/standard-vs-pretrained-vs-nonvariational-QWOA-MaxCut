@@ -1,0 +1,44 @@
+Running...
+
+Successfully generated target graph G with data:
+ ‣ unweighted 3-reg graph on n=16 vertices
+ ‣ number of edges = 24
+ ‣ density = [number of edges] / [n(n-1)/2] = 24/120 = 0.2
+ ‣ distribution of cut sizes (objective function values):
+   ‣ max  =  20.0
+   ‣ mean =  12.0
+   ‣ med  =  12.0
+   ‣ std  =  2.449489742783178
+
+Running randomly initialized nvQWOAmc(G,256,500)...
+
+randomizing initial parameters...
+
+!! -1 * (expectation value of cut size) at each iteration:
+-18.861270492524
+-18.98889813623858
+-19.279215963576682
+-19.563954068306767
+-19.914973202264676
+-19.997960529539235
+-19.99811344548208
+-19.99819170112731
+-19.998383597514874
+-19.998808328932792
+-19.999719636184473
+-19.999790124085404
+-19.99980038282076
+-19.999811944068025
+-19.999816086240827
+-19.999816781714834
+-19.999818319150886
+-19.999818365643954
+
+
+Completed randomly initialized nvQAOAmc(G,256,500) with optimization terminating after 18 iterations, yielding:
+ ‣ expectation ratio = 0.9999909182821977 ( = [minimum found expectation value of cut size of amplified state] / [maximum cut size] )
+ ‣ prob of measuring a maximum cut = 0.9998445045199401
+ ‣ best found parameters: (β,γ,t) = (0.00163103, 0.596894, 0.232117)
+
+Time elapsed for hybrid algorithm: 68.34350728988647
+
