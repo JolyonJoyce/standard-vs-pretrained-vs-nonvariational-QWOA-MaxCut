@@ -70,7 +70,7 @@ def main_args():
         help="number of iterations for classical tuning, default = 1", # we will use q = 500
     )
     parser.add_argument(
-        "-b",
+        "-B",
         "--blocking-qubits",
         default=0,
         type=float,
@@ -79,7 +79,7 @@ def main_args():
         help="size of qubit blocks for MPI parallelization, 0 sets blocking_enabled=False, default = 0",
     )
     parser.add_argument(
-        "-t",
+        "-T",
         "--threshold",
         default="14",
         dest="threshold",
@@ -180,6 +180,33 @@ def main_args():
         nargs="?",
         help="whether to print detailed logs (default = True)"
     )
+    parser.add_argument(
+        "-b",
+        "--beta-init",
+        default=False,
+        dest="beta-init",
+        type=float,
+        nargs="?",
+        help=""
+    )
+    parser.add_argument(
+        "-g",
+        "--gamma-init",
+        default=False,
+        dest="gamma-init",
+        type=float,
+        nargs="?",
+        help=""
+    )
+    parser.add_argument(
+        "-t",
+        "--t-init",
+        default=False,
+        dest="t-init",
+        type=float,
+        nargs="?",
+        help=""
+    )
 
     return parser.parse_args()
 
@@ -232,18 +259,16 @@ if __name__ == "__main__":
     if initial_params_file != "":
         loaded = np.load(initial_params_file)
         params_init = np.array([loaded['gammas'], loaded['ts']])
-        if logs == True:
+        if logs:
             print("Successfully loaded initial parameters for ptQAOAmc from ", initial_params_file)
             print()
     
-    if not weighted: weighted = False
-    
-    if logs == True:
+    if logs:
         num_edges_complete = round(n*(n-1)/2)
     
     if alg == "pt":
         Gprime = generate_graph(n, aux_graph, weighted=False)
-        if logs == True:
+        if logs:
             print(f"Successfully generated auxillary graph G\' with data:")
             print(f" ‣ unweighted {aux_graph} graph on n={n} vertices")
             
@@ -257,7 +282,7 @@ if __name__ == "__main__":
 
     G = generate_graph(n, graph_type, weighted, edge_prob, graph_seed)
     Q = qualities(G)
-    if logs == True:
+    if logs:
         print()
         print(f"Successfully generated target graph G with data:")
     
@@ -270,8 +295,8 @@ if __name__ == "__main__":
         num_edges = round(np.count_nonzero(G)/2)
         print(" ‣ number of edges =", num_edges)
         print(f" ‣ density = [number of edges] / [n(n-1)/2] = {num_edges}/{num_edges_complete}", "=", num_edges/num_edges_complete)
-        #print(" ‣ (weighted) adjacency matrix:")
-        #print(G)
+        print(" ‣ (weighted) adjacency matrix:")
+        print(G)
     
         #analyze cuts (possible solutions and their qualities, i.e. cut sizes)
         print(" ‣ distribution of cut sizes (objective function values):")
@@ -285,7 +310,7 @@ if __name__ == "__main__":
     #run standard QAOA
     if alg == 'std' or alg == 'all':
         
-        if logs == True:
+        if logs:
             print(f"Running stdQAOAmc(G,{p},{q})...")
             print()
             print("!! -1 * (expectation value of cut size) at each iteration:")
@@ -293,7 +318,7 @@ if __name__ == "__main__":
         
         scipy_output, num_iters, expectation_ratio, prob_max, best_gammas, best_ts = stdQAOAmc.run(backend, Q, G, p, q)
         
-        if logs == True:
+        if logs:
             end_time = time()
             #print("Output from scipy.optimize.minimize:")
             #print(scipy_output)
@@ -306,7 +331,7 @@ if __name__ == "__main__":
         
         if optimal_params_file != "":
             np.savez(optimal_params_file, gammas=best_gammas, ts=best_ts)
-            if logs == True:
+            if logs:
                 print(f"Successfully wrote optimal parameters to file {optimal_params_file}")
             # write out best_gammas and best_ts to .npz file to be loaded as follows:
             #   loaded = np.load(initial_params_file)
@@ -314,7 +339,7 @@ if __name__ == "__main__":
         
     #run pretrained QAOA
     elif alg == 'pt' or alg == 'all':
-        if logs == True:
+        if logs:
             print(f"Running ptQAOAmc(G,{p},{q})...")
             print()
             print("!! -1 * (expectation value of cut size) at each iteration:")
@@ -323,7 +348,7 @@ if __name__ == "__main__":
         scipy_output, num_iters, expectation_ratio, prob_max, best_gammas, best_gamma_primes, best_ts = ptQAOAmc.run(backend, Q, G, Gprime, p, q, params_init)
         end_time = time()
         
-        if logs == True:
+        if logs:
             #print("Output from scipy.optimize.minimize:")
             #print(scipy_output)
             print()
@@ -335,7 +360,7 @@ if __name__ == "__main__":
 
     #run non-variational QWOA
     elif alg == 'nv' or alg == 'all':
-        if logs == True:
+        if logs:
             print(f"Running nvQWOAmc(G,{p},{q})...")
             print()
             print("!! -1 * (expectation value of cut size) at each iteration:")
@@ -343,7 +368,7 @@ if __name__ == "__main__":
         
         scipy_output, num_iters, expectation_ratio, prob_max, best_beta, best_gamma, best_t = nvQWOAmc.run(backend, Q, G, p, q)
         
-        if logs == True:    
+        if logs:    
             end_time = time()
             #print("Output from scipy.optimize.minimize:")
             #print(scipy_output)
@@ -355,5 +380,5 @@ if __name__ == "__main__":
             print()
             print(f"Time elapsed for hybrid algorithm:", end_time - start_time)
     
-    if logs == True:    
+    if logs:    
         print()

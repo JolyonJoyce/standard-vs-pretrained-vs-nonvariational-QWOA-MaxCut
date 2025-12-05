@@ -441,7 +441,7 @@ def process_folder3(folder_path, edit_dist, solution_similarities_min, solution_
                 stripped = line.strip()
                 if stripped.startswith('‣ max') and '=' in stripped:
                     parts = stripped.split('=', 1)
-                    if len(parts) == 2:
+                    if len(parts) == 2: 
                         maxcut_str = parts[1].strip()
                         maxcut = float(maxcut_str)
                         break
@@ -530,7 +530,7 @@ def process_folder3(folder_path, edit_dist, solution_similarities_min, solution_
         'seeds': seeds
     }
 
-
+#pandas
 def process_folder2(folder_path, edit_dist, solution_similarities_min, solution_similarities_mean):
     """
     Processes a single folder using associated data lists.

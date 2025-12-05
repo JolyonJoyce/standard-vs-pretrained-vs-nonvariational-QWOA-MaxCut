@@ -25,11 +25,13 @@ def map_params(Q, alpha, beta, gamma, t, qc, gamma_parameters, t_parameters, p):
     return qc
 
 # classical optimization
-def sim_and_optimize(backend, Q, qc, G, gamma_parameters, t_parameters, alpha, beta_init, gamma_init, t_init, p, return_max_prob=False, optimize=False, method='L-BFGS-B', bounds=None, options = {'maxiter': 100}): 
+def sim_and_optimize(backend, Q, qc, G, gamma_parameters, t_parameters, alpha, beta_init, gamma_init, t_init, p, q, return_max_prob=False, optimize=False, method='L-BFGS-B', bounds=None): 
     
     n = qc.num_qubits
     
-    def cost(params):
+    exp_values = list()
+    
+    def cost(params, exp_values=exp_values):
         # Unpack the parameters
         beta_guess = params[0]
         gamma_guess = params[1]
@@ -42,8 +44,13 @@ def sim_and_optimize(backend, Q, qc, G, gamma_parameters, t_parameters, alpha, b
         statevector = backend.run(qc_guess).result().get_statevector()
         
         expectation_value = Q @ (np.abs(statevector)**2)
-        print(-expectation_value) # to track minimization trajectory 
-        return -expectation_value  # Negative for minimization
+        #print(-expectation_value) # to track minimization trajectory 
+
+        exp_values.append(-expectation_value)
+        
+        #if len(exp_values) % 4 == 1:
+        #    print(min(exp_values))
+        return -expectation_value  # Negative for minimization 
     
     '''
     derivativeM = []
@@ -101,27 +108,38 @@ def sim_and_optimize(backend, Q, qc, G, gamma_parameters, t_parameters, alpha, b
     if optimize:
         # Combine initial parameters into one array
         initial_params = np.array([beta_init, gamma_init, t_init])
-        
-        # Default bounds are not provided
+    
         if bounds is None:
             bounds = [(0,1),(0,2*np.pi),(0,2*np.pi)]  # Assuming ranges [0, 2π] for all parameters
+            # bounds from Edric's repo: [(0,0.5),(0,5),(0,0.7)]
         
-        # Minimize the negative expectation value
-        result = minimize(cost, initial_params, bounds=bounds, method=method, options=options)
-    
+        
+        def print_value_after_iteration(intermediate_result=None):
+            print(intermediate_result.fun)
+        
+        if method == 'L-BFGS-B':
+            options = {"maxfun": 50000, "maxiter": q, 'eps':1e-8, 'ftol':1e-8, 'gtol':1e-5, 'maxcor':40} 
+            result = minimize(cost, initial_params, callback=print_value_after_iteration, bounds=bounds, method=method, options=options)
+        else:
+            options = {"maxfun": 50000, "maxiter": q, 'eps':1e-8, 'ftol':1e-8, 'gtol':1e-5, 'maxcor':40} 
+            result = minimize(cost, initial_params, callback=print_value_after_iteration, bounds=bounds, method=method, options={"maxiter": q+1})
+
+
+        # After optimization is achieved or q iterations is reached:
+        ## Extract num of iterations
         num_iters = result.nit
         
-        # Extract the best found params
+        ## Extract the best found params
         best_params = result.x
         best_beta = best_params[0]
         best_gamma = best_params[1]
         best_t = best_params[2]
             
-        # The maximum expectation value is the negative of the minimum found
+        ## The maximum expectation value is the negative of the minimum found
         max_expectn_value = -result.fun
         approxn_ratio = max_expectn_value/max(Q)
             
-        # Get the probablility of measuring a maximum cut
+        ## Get the probablility of measuring a maximum cut
         qc = map_params(Q, alpha, best_beta, best_gamma, best_t, qc, gamma_parameters, t_parameters, p)
         statevector = backend.run(qc).result().get_statevector()
         probs = (np.abs(statevector)**2)
@@ -162,8 +180,12 @@ def run(backend, Q, G, p, q, alpha=False, beta=False, gamma=False, t=False):
     if type(t) == bool:
         t = 0.3
         #t = np.random.normal(1., 0.5)
+        
+    # Step 1: test behaviour of Edric/Aidan's code - similar?
+    # Jingbo: suggested trying smaller gamma
+    # Edric: suggested randomizing all three parameters for ~10 trials and checking behaviour
     
     # simulation
-    scipy_output, num_iters, approxn_ratio, prob_max, best_beta, best_gamma, best_t = sim_and_optimize(backend, Q, qc, G, gamma_parameters, t_parameters, alpha, beta, gamma, t, p, optimize=True, options={"maxfun": 50000, "maxiter": q, 'eps':1e-8, 'ftol':1e-8, 'gtol':1e-5, 'maxcor':40})
+    scipy_output, num_iters, approxn_ratio, prob_max, best_beta, best_gamma, best_t = sim_and_optimize(backend, Q, qc, G, gamma_parameters, t_parameters, alpha, beta, gamma, t, p, q, optimize=True, method='Nelder-Mead')
 
     return scipy_output, num_iters, approxn_ratio, prob_max, best_beta, best_gamma, best_t

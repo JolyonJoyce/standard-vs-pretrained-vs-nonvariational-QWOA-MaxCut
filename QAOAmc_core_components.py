@@ -112,6 +112,24 @@ def generate_graph(n=4, G_type="ER", weighted=False, edge_prob=0.3, seed=None):
         else:
             G = G.astype(int) #ensure unweighted graphs have integer entries
             
+    elif G_type == "un-pseudo-3-reg":
+        if n * 3 % 2 != 0:
+            raise ValueError("3-reg graphs are only possible for an even number of nodes.")
+        G_nx = nx.random_regular_graph(3, n, seed=seed if isinstance(seed, int) else None)
+        G = np.array(nx.to_numpy_array(G_nx))
+        if weighted:
+            # Assign random weights to existing edges
+            weight_matrix = np.random.random((n, n))
+            G = G * weight_matrix
+        else:
+            G = G.astype(int) #ensure unweighted graphs have integer entries
+
+        H = np.copy(G)
+        
+        for i in range(n):
+            for j in range(n):
+                G[i,j] = (H[i,j] + H[j,i])/2 #weights of edges in G are average of the weights of the corresponding pairs of directed edges in its directed counterpart
+        
     elif G_type == "ER":
         G = np.zeros((n, n))
         for i in range(n):
@@ -119,7 +137,7 @@ def generate_graph(n=4, G_type="ER", weighted=False, edge_prob=0.3, seed=None):
                 if np.random.random() < edge_prob:
                     G[i, j] = np.random.random() if weighted else 1
                     G[j, i] = G[i, j]
-        if weighted == False:
+        if not weighted:
             G = G.astype(int) #ensure unweighted graphs have integer entries
 
     else:
@@ -133,19 +151,19 @@ def QUBO(G):
     return -(G - np.diag(G.sum(axis=1))) # (where does this come from?)
 
 ## function to produce the size of a cut as a binary string x of a graph with QUBO representation Q
-def quality(vec_x, qubo_G):
-    return vec_x.T @ qubo_G @ vec_x # (@ is mATrix product; vec_x.T is transpose of vec_x)
+def quality(vec_x, QUBO_G):
+    return vec_x.T @ QUBO_G @ vec_x # (@ is mATrix product; vec_x.T is transpose of vec_x)
 
 # compute the quality vector; N.B. quality vector is symmetric about centre point
 def qualities(G):
     n = len(G)
-    qubo_G = QUBO(G)
+    QUBO_G = QUBO(G)
     N = 2**n
     Q = np.zeros(N)
     all_binary_arrays = unpackbits(np.arange(N//2), n, asbool=True)
     
     for i in range(N//2):
-        Q[i] = quality(all_binary_arrays[i], qubo_G)
+        Q[i] = quality(all_binary_arrays[i], QUBO_G)
     
     Q[N//2:] = (Q[:N//2])[::-1]
     

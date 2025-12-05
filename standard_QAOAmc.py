@@ -78,7 +78,7 @@ def sim_and_optimize(backend, Q, qc, G, gamma_parameters, t_parameters, gammas, 
         
         # compute gradients
         d_ts = np.zeros(p)
-        d_gammas = np.zeros(p)   
+        d_gammas = np.zeros(p)
         
         for i in range(p-1,-1,-1): #(start(incl), stop(excl), increment): starts at (p-1)th layer and stops at 0th layer 
 

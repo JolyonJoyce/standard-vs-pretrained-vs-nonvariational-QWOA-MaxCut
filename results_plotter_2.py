@@ -4,12 +4,65 @@ import numpy as np
 from scipy import stats
 import matplotlib.lines as mlines
 
-def plot_combined_horizontal(Standard_ER_results,
-                             Pretrained_ER_results, 
-                             Nonvariational_ER_results,
-                             Standard_3R_results, Pretrained_3R_results, 
-                             Nonvariational_3R_results,
-                             all_runs, names, labels):
+# Source - https://stackoverflow.com/a
+# Posted by paime, modified by community. See post 'Timeline' for change history
+# Retrieved 2025-12-02, License - CC BY-SA 4.0
+
+def add_headers(
+    fig,
+    *,
+    row_headers=None,
+    col_headers=None,
+    row_pad=1,
+    col_pad=5,
+    rotate_row_headers=True,
+    **text_kwargs
+):
+    # Based on https://stackoverflow.com/a/25814386
+
+    axes = fig.get_axes()
+
+    for ax in axes:
+        sbs = ax.get_subplotspec()
+
+        # Putting headers on cols
+        if (col_headers is not None) and sbs.is_first_row():
+            ax.annotate(
+                col_headers[sbs.colspan.start],
+                xy=(0.5, 1),
+                xytext=(0, col_pad),
+                xycoords="axes fraction",
+                textcoords="offset points",
+                ha="center",
+                va="baseline",
+                **text_kwargs,
+            )
+
+        # Putting headers on rows
+        if (row_headers is not None) and sbs.is_first_col():
+            ax.annotate(
+                row_headers[sbs.rowspan.start],
+                xy=(0, 0.5),
+                xytext=(-ax.yaxis.labelpad - row_pad, 0),
+                xycoords=ax.yaxis.label,
+                textcoords="offset points",
+                ha="right",
+                va="center",
+                rotation=rotate_row_headers * 90,
+                **text_kwargs,
+            )
+
+
+
+def plot_means(Standard_3R_results,
+               Path_Pretrained_3R_results,
+               Nonvariational_3R_results,
+               Standard_ER_results,
+               Path_Pretrained_ER_results,
+               Nonvariational_ER_results,
+               all_runs, names, labels,
+               xlim1=60, scale1='linear', xlim2=500, scale2='log'):
+
     """
     Plots all results in a horizontally arranged figure with 2 rows and 4 columns.
     
@@ -25,20 +78,21 @@ def plot_combined_horizontal(Standard_ER_results,
     label_fontsize = 20
     tick_fontsize = 18
     legend_fontsize = 20
-    subtitle_fontsize = 24
+    subtitle_fontsize = 20
 
     # Define color scheme
     std_color = '#ff7f0e' # Orange
     pt_color = '#1f77b4'  # Blue
     nv_color = '#31ab31' # green
 
-    # Create a figure with 2 rows and 4 columns
-    fig, axes = plt.subplots(2, 4, figsize=(24, 16), sharey=False)
+    # Create a figure with 2 rows and 3 columns
+    fig, axes = plt.subplots(2, 2, figsize=(16, 16), sharey=True)
 
+    '''
     # ------------------------------
     # Helper function to plot individual runs
     # ------------------------------
-    def plot_individual_runs(ax, runs, title, color, show_ylabel=True, Title=False, set_legend=False):
+    def plot_individual_runs(ax, runs, title, color, show_ylabel=True, Title=False, set_legend=False, xlim=xlim):
         """
         Plots individual runs on the given axis.
         
@@ -53,10 +107,10 @@ def plot_combined_horizontal(Standard_ER_results,
         """
         for run in runs:
             iterations = list(range(1, len(run) + 1))
-            if len(iterations) < 10:
-                ax.plot(iterations, 100 * np.array(run), color='purple', linewidth=3)
-            else:
-                ax.plot(iterations, 100 * np.array(run), alpha=0.3, color=color)
+            #if len(iterations) < 10:
+            #    ax.plot(iterations, 100 * np.array(run), color='purple', linewidth=3)
+            #else:
+            ax.plot(iterations, 100 * np.array(run), alpha=0.3, color=color)
         
         ax.axhline(y=87.86, color='r', linestyle='--',  linewidth=3,label='GW Threshold')
         if Title:
@@ -64,14 +118,290 @@ def plot_combined_horizontal(Standard_ER_results,
         ax.set_xlabel("Iteration", fontsize=label_fontsize)
         
         if show_ylabel:
-            ax.set_ylabel("Approximation Ratio (%)", fontsize=label_fontsize)
+            ax.set_ylabel(r"Approximation Ratio (\%)", fontsize=label_fontsize)
         else:
             ax.set_ylabel("")
             ax.tick_params(axis='y', which='both', left=False, labelleft=False)
         
         ax.set_ylim(50, 100)
         ax.tick_params(axis='both', which='major', labelsize=tick_fontsize)
-        ax.set_xlim(0, 500)
+        ax.set_xlim(0, xlim)
+        ax.grid(True)
+        
+        # Handle legends to avoid duplicate labels
+        if set_legend:
+            # Create custom legend handles using Line2D
+            standard_line = mlines.Line2D([], [], color=std_color, linewidth=2, label='Standard')
+            pretrained_line = mlines.Line2D([], [], color=pt_color, linewidth=2, label='Pretrained')
+            nonvariational_line = mlines.Line2D([], [], color=nv_color, linewidth=2, label='Nonvariational')
+            gw_line = mlines.Line2D([], [], color='r', linestyle='--', linewidth=2, label='GW Threshold')
+            
+            # Add the legend to the axis
+            ax.legend(handles=[standard_line,pretrained_line, nonvariational_line, gw_line],
+                      loc='upper left',
+                      fontsize=legend_fontsize,
+                      framealpha=0.9)
+    '''
+    
+    # ------------------------------
+    # Helper function to plot mean with confidence intervals
+    # ------------------------------
+    def plot_mean_with_ci(ax, runs_group, name, dataset_labels, xlim, scale, show_ylabel=True, show_xlabel=True, set_legend=False):
+        """
+        Plots the mean cumulative maximum with 95% confidence intervals.
+        
+        Parameters:
+        - ax (matplotlib.axes.Axes): The axis to plot on.
+        - runs_group (list of lists): Each inner list contains runs for a dataset.
+        - name (str): Title for the subplot.
+        - dataset_labels (list of str): Labels for each dataset.
+        - show_ylabel (bool): Whether to show y-axis labels and ticks.
+        - set_legend (bool): Whether to set legend for the subplot.
+        """
+        for runs, dataset_label in zip(runs_group, dataset_labels):
+            # Determine the maximum number of iterations across all runs for this dataset
+            max_iterations = max(len(run) for run in runs)
+
+            # Initialize a list to store cumulative maxima for each run
+            cumulative_max_runs = []
+
+            for run in runs:
+                cumulative_max = []
+                current_max = -np.inf
+                for val in run:
+                    if val > current_max:
+                        current_max = val
+                    cumulative_max.append(current_max)
+                # If the run has fewer iterations than max_iterations, extend with the last max
+                if len(cumulative_max) < max_iterations:
+                    last_max = cumulative_max[-1]
+                    cumulative_max.extend([last_max] * (max_iterations - len(cumulative_max)))
+                cumulative_max_runs.append(cumulative_max)
+
+            # Convert to a NumPy array for easier manipulation
+            cumulative_max_array = np.array(cumulative_max_runs)  # Shape: (num_runs, max_iterations)
+
+            # Calculate mean and confidence intervals
+            mean_values = np.mean(cumulative_max_array, axis=0)
+            sem_values = stats.sem(cumulative_max_array, axis=0)
+            confidence = 0.95  # 95% confidence interval
+            z_score = stats.norm.ppf(1 - (1 - confidence) / 2)  # Two-tailed
+
+            margin_of_error = z_score * sem_values
+            lower_bounds = mean_values - margin_of_error
+            upper_bounds = mean_values + margin_of_error
+
+            # Define iterations for plotting
+            iterations = np.arange(1, max_iterations + 1)
+
+            # Determine color based on dataset label
+            if 'Standard' in dataset_label:
+                color = std_color
+            elif 'Pretrained' in dataset_label:
+                color = pt_color
+            elif 'Nonvariational' in dataset_label:
+                color = nv_color
+            else:
+                color = 'gray'  # Default color if needed
+
+            print(f"The final mean approximation ratio for {name} using {dataset_label} is {100*mean_values[-1]:.2f}%\n")
+            # Plot the mean line
+            ax.plot(iterations, 100 * mean_values, label=f'{dataset_label}', linewidth=2, color=color)
+
+            # Plot the confidence interval as a shaded area
+            ax.fill_between(iterations, 100 * lower_bounds, 100 * upper_bounds, alpha=0.3, color=color)
+        
+        # Reference horizontal line
+        ax.axhline(y=87.8, color='r', linestyle='--', linewidth=3,label='Goemans-Williamson Threshold')
+        
+        ax.set_ylim(50, 100)
+        ax.set_xlim(1, xlim)
+        if scale == 'log':
+            ax.set_xscale(scale, base=2)
+        
+        if show_ylabel:
+            ax.set_ylabel(r"Approximation Ratio (\%)", fontsize=label_fontsize)
+        else:
+            ax.set_ylabel("")
+            ax.tick_params(axis='y', which='both', left=False, labelleft=False)
+        
+        if show_xlabel:
+            ax.set_xlabel("Iteration", fontsize=label_fontsize)
+            if scale == 'log':
+                ax.set_xticks([1, 2, 2**2, 2**3, 2**4, 2**5, 2**6, 2**7, 2**8, 500], labels=['1','2','4','8','16','32','64','128','256','500'])
+            else:
+                ax.set_xticks([1, 10, 20, 30, 40, 50, 60])
+        else:
+            ax.set_xlabel("")
+            ax.tick_params(axis='x', which='both', bottom=False, labelbottom=False)
+        
+        ax.tick_params(axis='both', which='major', labelsize=tick_fontsize)
+
+        ax.grid(visible=True)
+        #ax.minorticks_on()
+        
+        # Handle legends to avoid duplicate labels
+        if set_legend:
+            handles, labels_ = ax.get_legend_handles_labels()
+            unique = dict(zip(labels_, handles))
+            ax.legend(unique.values(), unique.keys(), loc='lower right', fontsize=legend_fontsize, framealpha=0.9)
+
+    # ------------------------------
+    # Plotting for 3-Regular (Top Row)
+    # ------------------------------
+    # Standard individual runs for 3-Regular (Top-Middle) - With Title and Legend
+    
+    # 60-iteration mean plot for 3-Regular (Top-left)
+    plot_mean_with_ci(
+        ax=axes[0, 0],
+        runs_group=all_runs[0], # 3-reg runs
+        name=names[0],
+        dataset_labels=labels,
+        xlim=xlim1,
+        scale=scale1,
+        show_ylabel=True,    # y-label shown only on the first plot in the row
+        show_xlabel=False,
+        set_legend=False, # Legend moved to the middle plot
+    )
+    
+    # 500-iteration (log) mean plot for 3-regular (Top-right)
+    plot_mean_with_ci(
+        ax=axes[0, 1],
+        runs_group=all_runs[0], # 3-reg runs
+        name=names[0],
+        dataset_labels=labels,
+        xlim=xlim2,
+        scale=scale2,
+        show_ylabel=False,    # y-label shown only on the first plot in the row
+        show_xlabel=False,
+        set_legend=False,      # Legend moved to the middle plot
+    )
+    
+    # ------------------------------
+    # Plotting for ER30 (Bottom Row)
+    # ------------------------------
+
+    # 60-iteration mean plot for ER30 (Bottom-left)
+    plot_mean_with_ci(
+        ax=axes[1, 0],
+        runs_group=all_runs[1], # ER30 runs
+        name=names[1],
+        dataset_labels=labels,
+        xlim=xlim1,
+        scale=scale1,
+        show_ylabel=True,    # y-label shown only on the first plot in the row
+        show_xlabel=True,
+        set_legend=False      # Legend already set on the top middle plot
+    )
+
+    # 500-iteration (log) mean plot for ER30 (Bottom-left)
+    plot_mean_with_ci(
+        ax=axes[1, 1],
+        runs_group=all_runs[1], # ER30 runs
+        name=names[1],
+        dataset_labels=labels,
+        xlim=xlim2,
+        scale=scale2,
+        show_ylabel=False,    # y-label shown only on the first plot in the row
+        show_xlabel=True,
+        set_legend=True,     # Legend already set on the top middle plot
+    )
+
+    col_titles = ["First $60$ iterations", r"All $500$ iterations ($\log_2$)"]
+    row_titles = ["$3$-regular graphs", r"$\mathrm{ER}(0.3)$ graphs"]
+    font_kwargs = dict(fontsize=title_fontsize)
+    #for i, title in enumerate(col_titles):
+    #    axes[0, i].set_title(title, fontsize=subtitle_fontsize, pad=20)  # Apply to the first row for column titles
+
+    add_headers(fig, col_headers=col_titles, row_headers=row_titles, row_pad=5, col_pad=15, **font_kwargs)
+    
+    for ax in axes.flat:
+        ax.grid(True, alpha=0.3)
+
+    # Adjust layout to prevent overlap
+    plt.tight_layout(rect=(0,0,1,1))
+    plt.subplots_adjust(left=0.15, right=0.95, top=0.9, bottom=0.1)  # Make space for titles and labels
+
+    # Display the combined plot (must be performed *after* saving the plot for save to be successful)
+    #plt.show()
+
+def plot_combined_horizontal(Standard_3R_results,
+                             Pretrained_3R_results, 
+                             Nonvariational_3R_results,
+                             Standard_ER_results,
+                             Pretrained_ER_results,
+                             Nonvariational_ER_results,
+                             all_runs, names, labels, xlim=60):
+    """
+    Plots all results in a horizontally arranged figure with 2 rows and 4 columns.
+    
+    Each row corresponds to a graph type (3-Regular and ER30) and contains:
+    - Standard individual runs
+    - Pretrained individual runs.
+    - Non-variational individual runs.
+    - Mean cumulative maximum with confidence intervals.
+    """
+    
+    # Define font sizes
+    title_fontsize = 24
+    label_fontsize = 20
+    tick_fontsize = 18
+    legend_fontsize = 20
+    subtitle_fontsize = 20
+
+    # Define color scheme
+    std_color = '#ff7f0e' # Orange
+    pt_color = '#1f77b4'  # Blue
+    nv_color = '#31ab31' # green
+
+    # Create a figure with 2 rows and 3 columns
+    fig, axes = plt.subplots(2, 3, figsize=(24, 16), sharey=False)
+
+    # ------------------------------
+    # Helper function to plot individual runs
+    # ------------------------------
+    def plot_individual_runs(ax, runs, title, color, show_ylabel=True, show_xlabel=True, Title=False, set_legend=False, xlim=xlim):
+        """
+        Plots individual runs on the given axis.
+        
+        Parameters:
+        - ax (matplotlib.axes.Axes): The axis to plot on.
+        - runs (list of lists): Each inner list contains approximation ratios for a single run.
+        - title (str): Title for the subplot.
+        - color (str): Color for the individual runs.
+        - show_ylabel (bool): Whether to show y-axis labels and ticks.
+        - Title (bool): Whether to set the title.
+        - set_legend (bool): Whether to set the legend.
+        """
+        for run in runs:
+            iterations = list(range(1, len(run) + 1))
+            #if len(iterations) < 10:
+            #    ax.plot(iterations, 100 * np.array(run), color='purple', linewidth=3)
+            #else:
+            ax.plot(iterations, 100 * np.array(run), alpha=0.3, color=color)
+        
+        ax.axhline(y=87.86, color='r', linestyle='--',  linewidth=3,label='GW Threshold')
+        if Title:
+            ax.set_title(title, fontsize=title_fontsize)
+        #ax.set_xlabel("Iteration", fontsize=label_fontsize)
+        
+        ax.set_ylim(50, 100)
+        ax.set_xlim(1, xlim)
+        
+        if show_ylabel:
+            ax.set_ylabel(r"Approximation Ratio (\%)", fontsize=label_fontsize)
+        else:
+            ax.set_ylabel("")
+            ax.tick_params(axis='y', which='both', left=False, labelleft=False)
+        
+        if show_xlabel:
+            ax.set_xlabel("Iteration", fontsize=label_fontsize)
+            ax.set_xticks([1,10,20,30,40,50,60])
+        else:
+            ax.set_xlabel("")
+            ax.tick_params(axis='x', which='both', bottom=False, labelbottom=False)
+             
+        ax.tick_params(axis='both', which='major', labelsize=tick_fontsize)
         ax.grid(True)
         
         # Handle legends to avoid duplicate labels
@@ -88,10 +418,11 @@ def plot_combined_horizontal(Standard_ER_results,
                       fontsize=legend_fontsize,
                       framealpha=0.9)
 
+    '''
     # ------------------------------
     # Helper function to plot mean with confidence intervals
     # ------------------------------
-    def plot_mean_with_ci(ax, runs_group, name, dataset_labels, show_ylabel=True, set_legend=False):
+    def plot_mean_with_ci(ax, runs_group, name, dataset_labels, show_ylabel=True, set_legend=False, xlim=xlim):
         """
         Plots the mean cumulative maximum with 95% confidence intervals.
         
@@ -160,7 +491,7 @@ def plot_combined_horizontal(Standard_ER_results,
         ax.axhline(y=87.8, color='r', linestyle='--', linewidth=3,label='Goemans-Williamson Threshold')
         
         if show_ylabel:
-            ax.set_ylabel("Approximation Ratio (%)", fontsize=label_fontsize)
+            ax.set_ylabel(r"Approximation Ratio (\%)", fontsize=label_fontsize)
         else:
             ax.set_ylabel("")
             ax.tick_params(axis='y', which='both', left=False, labelleft=False)
@@ -168,7 +499,283 @@ def plot_combined_horizontal(Standard_ER_results,
         ax.set_xlabel("Iteration", fontsize=label_fontsize)
         ax.set_ylim(50, 100)
         ax.tick_params(axis='both', which='major', labelsize=tick_fontsize)
-        ax.set_xlim(0, 500)
+        ax.set_xlim(0, xlim)
+        ax.grid(True, linestyle='--', alpha=0.5)
+        
+        # Handle legends to avoid duplicate labels
+        if set_legend:
+            handles, labels_ = ax.get_legend_handles_labels()
+            unique = dict(zip(labels_, handles))
+            ax.legend(unique.values(), unique.keys(), loc='upper left', fontsize=legend_fontsize, framealpha=0.9)
+    '''
+    
+    # ------------------------------
+    # Plotting for 3-Regular (Top Row)
+    # ------------------------------
+    # Standard individual runs for 3-Regular (Top-Middle) - With Title and Legend
+    plot_individual_runs(
+        ax=axes[0, 0],
+        runs=Standard_3R_results['all_runs'],
+        title="",  # Title will be set as a column title
+        color=std_color,
+        show_ylabel=True,  
+        show_xlabel=False,
+        Title=False,         # No individual subplot title
+        set_legend=False      # Set legend on this subplot
+    )
+    
+    # Pretrained individual runs for 3-Regular (Top-Left)
+    plot_individual_runs(
+        ax=axes[0, 1],
+        runs=Pretrained_3R_results['all_runs'],
+        title="",  # No title
+        color=pt_color,
+        show_ylabel=False,    # Show y-axis label and ticks for the first plot in the row
+        show_xlabel=False,
+        Title=False,         # Do not set title here
+        set_legend=False      # Legend will be set on the middle plot
+    )
+    
+    # Nonvariational individual runs for 3-Regular (Top-Middle) - With Title and Legend
+    plot_individual_runs(
+        ax=axes[0, 2],
+        runs=Nonvariational_3R_results['all_runs'],
+        title="",  # Title will be set as a column title
+        color=nv_color,
+        show_ylabel=False,  
+        show_xlabel=False,
+        Title=False,         # No individual subplot title
+        set_legend=False,      # Set legend on this subplot
+    )
+    
+    # ------------------------------
+    # Plotting for ER30 (Bottom Row)
+    # ------------------------------
+    # Standard individual runs for ER30 (Bottom-Middle) - With Title
+    plot_individual_runs(
+        ax=axes[1, 0],
+        runs=Standard_ER_results['all_runs'],
+        title="",  # Title will be set as a column title
+        color=std_color,
+        show_ylabel=True,   
+        show_xlabel=True,
+        Title=False,         # No individual subplot title
+        set_legend=False      # Legend already set on the top middle plot
+    )
+    
+    # Pretrained individual runs for ER30 (Bottom-Left)
+    plot_individual_runs(
+        ax=axes[1, 1],
+        runs=Pretrained_ER_results['all_runs'],
+        title="",  # No title
+        color=pt_color,
+        show_ylabel=False,    # Show y-axis label and ticks for the first plot in the row
+        show_xlabel=True,
+        Title=False,         # Do not set title here
+        set_legend=False      # Legend already set on the top middle plot
+    )
+    
+    plot_individual_runs(
+        ax=axes[1, 2],
+        runs=Nonvariational_ER_results['all_runs'],
+        title="",  # Title will be set as a column title
+        color=nv_color,
+        show_ylabel=False,   
+        show_xlabel=True,
+        Title=False,         # No individual subplot title
+        set_legend=False,      # Legend already set on the top middle plot
+    )
+
+    
+    col_titles = ["Standard QWOA", r"$\mathfrak{g}$-sim pretrained QWOA", "Nonvariational QWOA"]
+    row_titles = ["$3$-regular graphs", r"$\mathrm{ER}(0.3)$ graphs"]
+    font_kwargs = dict(fontsize=title_fontsize)
+    #for i, title in enumerate(col_titles):
+    #    axes[0, i].set_title(title, fontsize=subtitle_fontsize, pad=20)  # Apply to the first row for column titles
+
+    add_headers(fig, col_headers=col_titles, row_headers=row_titles, row_pad=5, col_pad=15, **font_kwargs)
+    
+    #column_titles = ["(A) Standard runs", "(B) Pretrained runs", "(C) Nonvariational runs"]
+    #for i, title in enumerate(column_titles):
+    #    axes[0, i].set_title(title, fontsize=subtitle_fontsize, pad=20)  # Apply to the first row for column titles
+
+    for ax in axes.flat:
+        ax.grid(True, alpha=0.3)
+
+    # Adjust layout to prevent overlap
+    plt.tight_layout(rect=(0,0,1,1))
+    plt.subplots_adjust(left=0.15, right=0.95, top=0.9, bottom=0.1)  # Make space for titles and labels
+
+    # Display the combined plot
+    #plt.show()
+
+
+def plot_combined_horizontal_with_means(Standard_3R_results,
+                             Pretrained_3R_results, 
+                             Nonvariational_3R_results,
+                             Standard_ER_results,
+                             Pretrained_ER_results,
+                             Nonvariational_ER_results,
+                             all_runs, names, labels, xlim=500):
+    """
+    Plots all results in a horizontally arranged figure with 2 rows and 4 columns.
+    
+    Each row corresponds to a graph type (3-Regular and ER30) and contains:
+    - Standard individual runs
+    - Pretrained individual runs.
+    - Non-variational individual runs.
+    - Mean cumulative maximum with confidence intervals.
+    """
+    
+    # Define font sizes
+    title_fontsize = 24
+    label_fontsize = 20
+    tick_fontsize = 18
+    legend_fontsize = 20
+    subtitle_fontsize = 20
+
+    # Define color scheme
+    std_color = '#ff7f0e' # Orange
+    pt_color = '#1f77b4'  # Blue
+    nv_color = '#31ab31' # green
+
+    # Create a figure with 2 rows and 4 columns
+    fig, axes = plt.subplots(2, 4, figsize=(24, 16), sharey=False)
+
+    # ------------------------------
+    # Helper function to plot individual runs
+    # -----------------------------
+    def plot_individual_runs(ax, runs, title, color, show_ylabel=True, Title=False, set_legend=False, xlim=xlim):
+        """
+        Plots individual runs on the given axis.
+        
+        Parameters:
+        - ax (matplotlib.axes.Axes): The axis to plot on.
+        - runs (list of lists): Each inner list contains approximation ratios for a single run.
+        - title (str): Title for the subplot.
+        - color (str): Color for the individual runs.
+        - show_ylabel (bool): Whether to show y-axis labels and ticks.
+        - Title (bool): Whether to set the title.
+        - set_legend (bool): Whether to set the legend.
+        """
+        for run in runs:
+            iterations = list(range(1, len(run) + 1))
+            #if len(iterations) < 10:
+            #    ax.plot(iterations, 100 * np.array(run), color='purple', linewidth=3)
+            #else:
+            ax.plot(iterations, 100 * np.array(run), alpha=0.3, color=color)
+        
+        ax.axhline(y=87.86, color='r', linestyle='--',  linewidth=3,label='GW Threshold')
+        if Title:
+            ax.set_title(title, fontsize=title_fontsize)
+        ax.set_xlabel("Iteration", fontsize=label_fontsize)
+        
+        if show_ylabel:
+            ax.set_ylabel("Approximation Ratio (/%)", fontsize=label_fontsize)
+        else:
+            ax.set_ylabel("")
+            ax.tick_params(axis='y', which='both', left=False, labelleft=False)
+        
+        ax.set_ylim(50, 100)
+        ax.tick_params(axis='both', which='major', labelsize=tick_fontsize)
+        ax.set_xlim(0, xlim)
+        ax.grid(True)
+        
+        # Handle legends to avoid duplicate labels
+        if set_legend:
+            # Create custom legend handles using Line2D
+            standard_line = mlines.Line2D([], [], color=std_color, linewidth=2, label='Standard')
+            pretrained_line = mlines.Line2D([], [], color=pt_color, linewidth=2, label='Pretrained')
+            nonvariational_line = mlines.Line2D([], [], color=nv_color, linewidth=2, label='Nonvariational')
+            gw_line = mlines.Line2D([], [], color='r', linestyle='--', linewidth=2, label='GW Threshold')
+            
+            # Add the legend to the axis
+            ax.legend(handles=[standard_line,pretrained_line, nonvariational_line, gw_line],
+                      loc='upper left',
+                      fontsize=legend_fontsize,
+                      framealpha=0.9)
+
+    # ------------------------------
+    # Helper function to plot mean with confidence intervals
+    # ------------------------------
+    def plot_mean_with_ci(ax, runs_group, name, dataset_labels, show_ylabel=True, set_legend=False, xlim=xlim):
+        """
+        Plots the mean cumulative maximum with 95% confidence intervals.
+        
+        Parameters:
+        - ax (matplotlib.axes.Axes): The axis to plot on.
+        - runs_group (list of lists): Each inner list contains runs for a dataset.
+        - name (str): Title for the subplot.
+        - dataset_labels (list of str): Labels for each dataset.
+        - show_ylabel (bool): Whether to show y-axis labels and ticks.
+        - set_legend (bool): Whether to set legend for the subplot.
+        """
+        for runs, dataset_label in zip(runs_group, dataset_labels):
+            # Determine the maximum number of iterations across all runs for this dataset
+            max_iterations = max(len(run) for run in runs)
+
+            # Initialize a list to store cumulative maxima for each run
+            cumulative_max_runs = []
+
+            for run in runs:
+                cumulative_max = []
+                current_max = -np.inf
+                for val in run:
+                    if val > current_max:
+                        current_max = val
+                    cumulative_max.append(current_max)
+                # If the run has fewer iterations than max_iterations, extend with the last max
+                if len(cumulative_max) < max_iterations:
+                    last_max = cumulative_max[-1]
+                    cumulative_max.extend([last_max] * (max_iterations - len(cumulative_max)))
+                cumulative_max_runs.append(cumulative_max)
+
+            # Convert to a NumPy array for easier manipulation
+            cumulative_max_array = np.array(cumulative_max_runs)  # Shape: (num_runs, max_iterations)
+
+            # Calculate mean and confidence intervals
+            mean_values = np.mean(cumulative_max_array, axis=0)
+            sem_values = stats.sem(cumulative_max_array, axis=0)
+            confidence = 0.95  # 95% confidence interval
+            z_score = stats.norm.ppf(1 - (1 - confidence) / 2)  # Two-tailed
+
+            margin_of_error = z_score * sem_values
+            lower_bounds = mean_values - margin_of_error
+            upper_bounds = mean_values + margin_of_error
+
+            # Define iterations for plotting
+            iterations = np.arange(1, max_iterations + 1)
+
+            # Determine color based on dataset label
+            if 'Standard' in dataset_label:
+                color = std_color
+            elif 'Pretrained' in dataset_label:
+                color = pt_color
+            elif 'Nonvariational' in dataset_label:
+                color = nv_color
+            else:
+                color = 'gray'  # Default color if needed
+
+            print(f"The final mean approximation ratio for {name} using {dataset_label} is {100*mean_values[-1]:.2f}%\n")
+            # Plot the mean line
+            ax.plot(iterations, 100 * mean_values, label=f'{dataset_label}', linewidth=2, color=color)
+
+            # Plot the confidence interval as a shaded area
+            ax.fill_between(iterations, 100 * lower_bounds, 100 * upper_bounds, alpha=0.3, color=color)
+        
+        # Reference horizontal line
+        ax.axhline(y=87.8, color='r', linestyle='--', linewidth=3,label='Goemans-Williamson Threshold')
+        
+        if show_ylabel:
+            ax.set_ylabel(r"Approximation Ratio (\%)", fontsize=label_fontsize)
+        else:
+            ax.set_ylabel("")
+            ax.tick_params(axis='y', which='both', left=False, labelleft=False)
+        
+        ax.set_xlabel("Iteration", fontsize=label_fontsize)
+        ax.set_ylim(50, 100)
+        ax.tick_params(axis='both', which='major', labelsize=tick_fontsize)
+        ax.set_xlim(0, xlim)
         ax.grid(True, linestyle='--', alpha=0.5)
         
         # Handle legends to avoid duplicate labels
@@ -210,14 +817,14 @@ def plot_combined_horizontal(Standard_ER_results,
         color=nv_color,
         show_ylabel=False,  
         Title=False,         # No individual subplot title
-        set_legend=False      # Set legend on this subplot
+        set_legend=False,      # Set legend on this subplot
     )
     
     # Mean plot for 3-Regular (Top-Right)
     plot_mean_with_ci(
         ax=axes[0, 3],
         runs_group=all_runs[0],
-        name=names[1],
+        name=names[0],
         dataset_labels=labels,
         show_ylabel=False,    # y-label shown only on the first plot in the row
         set_legend=False      # Legend moved to the middle plot
@@ -255,20 +862,20 @@ def plot_combined_horizontal(Standard_ER_results,
         color=nv_color,
         show_ylabel=False,   
         Title=False,         # No individual subplot title
-        set_legend=False      # Legend already set on the top middle plot
+        set_legend=False,      # Legend already set on the top middle plot
     )
     
     # Mean plot for ER30 (Bottom-Right)
     plot_mean_with_ci(
         ax=axes[1, 3],
         runs_group=all_runs[1],
-        name=names[0],
+        name=names[1],
         dataset_labels=labels,
         show_ylabel=False,    # y-label shown only on the first plot in the row
         set_legend=False      # Legend already set on the top middle plot
     )
 
-    column_titles = ["(A) Standard Runs", "(B) Pretrained Runs", "(C) Nonvariational Runs", "(D) Mean (Confidence Interval)"]
+    column_titles = ["(A) Standard runs", "(B) Pretrained runs", "(C) Nonvariational runs", "(D) Mean with 95% C.I."]
     for i, title in enumerate(column_titles):
         axes[0, i].set_title(title, fontsize=subtitle_fontsize, pad=20)  # Apply to the first row for column titles
 
@@ -369,7 +976,7 @@ def plot_mean(all_runs_groups, names, dataset_labels):
         ax.set_title(name, fontsize=title_fontsize)
         ax.set_xlabel("Iteration", fontsize=label_fontsize)
         if idx == 0:
-            ax.set_ylabel("Approximation Ratio (%)", fontsize=label_fontsize)
+            ax.set_ylabel(r"Approximation Ratio (\%)", fontsize=label_fontsize)
         
         # Customize tick parameters for larger font sizes
         ax.tick_params(axis='both', which='major', labelsize=tick_fontsize)
@@ -410,7 +1017,7 @@ def plot_results2(results1, results2, folder_labels):
         ax.axhline(y=87.8, color='r', linestyle='--', label='Goemans-Williamson Threshold')
         ax.set_title(title, fontsize=16)
         ax.set_xlabel("Iteration", fontsize=14)
-        ax.set_ylabel("Approximation Ratio (%)", fontsize=14)
+        ax.set_ylabel(r"Approximation Ratio (\%)", fontsize=14)
         ax.tick_params(axis='both', which='major', labelsize=12)
         ax.set_ylim(50, 100)
         ax.set_xlim(0, 500)
@@ -515,10 +1122,13 @@ def process_folder3(folder_path):
             # Check if the last normalized value is better than 0.8786
             if training_history[-1] > 0.8786:
                 better_than_0878 += 1
+            if training_history[-1] < 0.8786:
+                print(f"Seed {seed} is sub-GW")
             if training_history[-1] >0.9999:
                 instances_which_converged += 1
             if len(training_history) < 20:
                 instances_in_local_minima += 1
+                # print(seed)
             elif training_history[-1] <0.75:
                 instances_stuck_on_BP+= 1
 
@@ -841,7 +1451,7 @@ def plot_and_analyze_results(
         elif graph ==1:
             ax.set_title("16 Vertex 3-Regular Graph", fontsize=16)
         ax.set_xlabel("Iteration", fontsize=14)
-        ax.set_ylabel("Approximation Ratio (%)", fontsize=14)
+        ax.set_ylabel(r"Approximation Ratio (\%)", fontsize=14)
         ax.tick_params(axis='both', which='major', labelsize=12)
         ax.set_ylim(50, 100)
         ax.set_xlim(0, 200)
