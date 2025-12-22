@@ -226,10 +226,11 @@ def plot_means(Standard_3R_results,
             ax.tick_params(axis='y', which='both', left=False, labelleft=False)
         
         if show_xlabel:
-            ax.set_xlabel("Iteration", fontsize=label_fontsize)
             if scale == 'log':
+                ax.set_xlabel(r"Iteration ($\log_2$)", fontsize=label_fontsize)
                 ax.set_xticks([1, 2, 2**2, 2**3, 2**4, 2**5, 2**6, 2**7, 2**8, 500], labels=['1','2','4','8','16','32','64','128','256','500'])
             else:
+                ax.set_xlabel("Iteration", fontsize=label_fontsize)
                 ax.set_xticks([1, 10, 20, 30, 40, 50, 60])
         else:
             ax.set_xlabel("")
